@@ -1,43 +1,46 @@
 pipeline {
-  agent {
-    kubernetes {
-      yaml """
-kind: Pod
-spec:
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug
-    imagePullPolicy: Always
-    command:
-    - sleep
-    args:
-    - 9999999
-    volumeMounts:
-      - name: jenkins-docker-cfg
-        mountPath: /kaniko/.docker
-  volumes:
-  - name: jenkins-docker-cfg
-    projected:
-      sources:
-      - secret:
-          name: my-secret1
-          items:
-            - key: .dockerconfigjson
-              path: config.json
-"""
-    }
+
+  environment {
+    registry = "192.168.1.81:5000/justme/myweb"
+    dockerImage = ""
   }
+
+  agent any
+
   stages {
-    stage('Build with Kaniko') {
+
+    stage('Checkout Source') {
       steps {
-        container(name: 'kaniko', shell: '/busybox/sh') {
-          sh '''#!/busybox/sh
-            echo "FROM jenkins/inbound-agent:latest" > Dockerfile
-            /kaniko/executor --context `pwd` --destination bushu123/kaniko:latest
-          '''
+        git 'https://github.com/justmeandopensource/playjenkins.git'
+      }
+    }
+
+    stage('Build image') {
+      steps{
+        script {
+          dockerImage = docker.build registry + ":$BUILD_NUMBER"
         }
       }
     }
-  }
-}
 
+    stage('Push Image') {
+      steps{
+        script {
+          docker.withRegistry( "" ) {
+            dockerImage.push()
+          }
+        }
+      }
+    }
+
+    stage('Deploy App') {
+      steps {
+        script {
+          kubernetesDeploy(configs: "myweb.yaml", kubeconfigId: "mykubeconfig")
+        }
+      }
+    }
+
+  }
+
+}
