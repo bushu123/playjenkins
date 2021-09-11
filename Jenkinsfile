@@ -20,7 +20,7 @@ spec:
     projected:
       sources:
       - secret:
-          name: my-secret
+          name: my-secret1
           items:
             - key: .dockerconfigjson
               path: config.json
